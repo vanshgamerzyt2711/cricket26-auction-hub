@@ -1,17 +1,17 @@
-# Cricket 26 Auction Hub — Beta
+[Download Setup.exe](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest/download/Cricket26AuctionHub-Setup.exe) | [Latest release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest)
 
-Download and run **Cricket26AuctionHub-Setup.exe**. It downloads and verifies the application files, installs to your Windows user account, creates the IPL desktop shortcut, and opens **Scan Your Game**. Select your platform, detect or browse to the game, then scan the required game database. Thereafter use **Cricket 26 Auction Hub** on your desktop to start or continue an auction.
+# Cricket 26 Auction Hub — V1.0.1
 
-**We do not support piracy. This app is only for users who legally purchased and own Cricket 26.**
+For legally purchased copies of Cricket 26 only. We do not support piracy. Cricket 26 is not included.
 
-Cricket 26 must already be installed and owned separately. The app does not download the game. Windows 10/11 x64 and an internet connection are required for the initial download and updates. Node and the auction runtime are bundled; no developer tools are needed.
+Download Cricket26AuctionHub-Setup.exe for a fresh installation. Existing users: Settings & Tools → Updates → Update & Restart. If V1 is stuck at Scan Your Game and cannot reach Settings, run the new Setup.exe once; it preserves your saved auctions and backups.
 
-**Xbox / Game Pass / Microsoft Store:** squad import and restore use the Xbox save adapter. The game must be closed before applying changes. Review squads, Apply, accept the Windows administrator prompt if needed, then verify squads in-game.
+- Fixed genuine Steam version-5 Academy saves: preserve the existing save header, update the payload checksum, and verify the decoded squads before applying.
+- Fixed Xbox/Microsoft Store save discovery: discover the actual Academy container instead of using one developer-specific folder ID.
+- Separate original-squad checkpoints for different installations and save profiles.
+- Failed scans restore the previous game configuration.
+- Added Check Updates on the game scan screen.
 
-**Steam:** Steam library discovery, game launch, AcademyData000.SAV discovery and compatible-save squad import/restore are included. The scan validates the save container before import. The shared-format adapter has fixture coverage; a real Steam in-game validation is still pending. Unknown formats and ambiguous profiles stop without writing. Select the exact Steam profile folder if multiple profiles exist.
+Validation: actual locally installed Steam and Xbox databases/saves scanned successfully (254 and 250 IPL players respectively); two genuine Steam saves passed checksum and encode/decode tests; an isolated copy of a real Steam save passed exact squad import and restore using the actual Steam database. Random Xbox container/account tests passed. No live game saves, profile metadata, careers, or original archive were replaced during automated tests. In-game squad verification and public download/install test remain pending; do not treat file checks as gameplay verification.
 
-Play one or multiple teams, retain players, bid or skip lots, run a random auto-auction, save/continue seasons, and review all squads. Restore Pre-Auction Squads returns to your own saved starting squads, including preexisting custom changes; it is not a factory reset.
-
-Settings & Tools → Updates checks this GitHub repository. When a newer version is published, **Update & Restart** downloads and verifies the package before installation. Saves and backups live separately from replaceable application files under `%LOCALAPPDATA%\Cricket26AuctionHub\UserData`.
-
-This is an independent community tool, not an official Cricket 26 or IPL product. 3D auction assets/build credited to Game Changer 5. The supported game is sold separately. Node notices are included in runtime/LICENSE-Node.txt. This beta is unsigned.
+Independent community tool, not an official Cricket 26/IPL product. 3D auction assets credited to Game Changer 5. Node notices included. Unsigned beta.
