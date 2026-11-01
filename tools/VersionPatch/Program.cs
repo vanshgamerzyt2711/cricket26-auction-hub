@@ -83,6 +83,8 @@ if (replacedStrings < 2 || replacedConstants < 1)
 assembly.Name.Version = new Version(5, 0, 1, 0);
 var temp = path + ".patched";
 assembly.Write(temp);
+assembly.Dispose(); // Release Windows file handle before replacing the original assembly.
+File.SetAttributes(path, FileAttributes.Normal);
 File.Move(temp, path, true);
 Console.WriteLine($"Updated {path}: {oldVersion} -> {newVersion}; strings={replacedStrings}, constants={replacedConstants}");
 
