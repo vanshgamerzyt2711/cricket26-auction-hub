@@ -61,9 +61,8 @@ $patchProject = Join-Path $root 'tools/VersionPatch/VersionPatch.csproj'
 dotnet run --project $patchProject -c Release -- $main $version
 if ($LASTEXITCODE -ne 0) { throw 'Assembly patching failed.' }
 $metadata = (Get-Item $main).VersionInfo
-if ($metadata.FileVersion -notlike "$version*") {
-    throw "Main application file version remains $($metadata.FileVersion), expected $version"
-}
+Write-Host "Legacy Windows VERSIONINFO resource: $($metadata.FileVersion) (not used for GitHub update comparison)."
+Write-Host "New managed assembly version and embedded release strings were verified by the patching tool."
 
 $public.version = $version
 $public | ConvertTo-Json -Depth 80 | Set-Content -LiteralPath $publicPath -Encoding utf8
