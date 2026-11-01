@@ -4,6 +4,8 @@
 
 **V5 is a packaging update, not a new app-feature version.** It contains the V4.0.1 application files in a standard offline Inno Setup installer with Desktop and Start Menu shortcuts, per-user installation, and an uninstaller.
 
+**Existing V4 users:** V5 is an offline packaging-only release. It does **not** provide the legacy `Cricket26AuctionHub-update-manifest.json` or `Cricket26AuctionHub-update-win-x64.zip`, and its application binary still identifies itself as 4.0.1. Do not expect the old in-app updater to offer V5. Download the V5 installer manually, close the old app, back up your profiles/saves, and install without uninstalling your existing working version. The standard installer uses a separate per-user install directory, so automatic in-place migration is not supported. Do not publish a fabricated 5.0.0 update manifest until the app is actually rebuilt with updated version/update logic.
+
 **Note:** This release is unsigned; 0 detections on a previously tested local installer do not certify this published binary or its contents. Update compatibility and the application itself require separate testing. Backup any existing installation before switching installers.
 
 ---
