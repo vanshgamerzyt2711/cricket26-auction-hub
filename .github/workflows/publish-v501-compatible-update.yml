@@ -1,4 +1,5 @@
 name: Build V5.0.1 compatible automatic updater
+# Retry after fixing repository root detection
 
 on:
   push:
