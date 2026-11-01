@@ -1,0 +1,97 @@
+name: Build and publish V5 offline installer
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-v5.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout packaging script
+        uses: actions/checkout@v4
+
+      - name: Download and verify official V4.0.1 release payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zipPath = Join-Path $env:RUNNER_TEMP 'Cricket26AuctionHub-win-x64.zip'
+          $url = 'https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v4.0.1/Cricket26AuctionHub-win-x64.zip'
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          $expected = 'a9cac4cb748df508ef35fa1527a56e8d108de331339fef931d088d5067a7a202'
+          $actual = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Downloaded V4.0.1 payload checksum mismatch: $actual"
+          }
+          $extracted = Join-Path $env:RUNNER_TEMP 'auction-payload-extracted'
+          Expand-Archive -LiteralPath $zipPath -DestinationPath $extracted -Force
+          $mainExe = Get-ChildItem -Path $extracted -Filter 'Cricket26AuctionManager.exe' -File -Recurse |
+            Select-Object -First 1
+          if (-not $mainExe) { throw 'Main EXE not present in V4.0.1 payload.' }
+          $payload = Join-Path $env:GITHUB_WORKSPACE 'AppPayload'
+          New-Item -ItemType Directory -Path $payload -Force | Out-Null
+          Get-ChildItem -LiteralPath $mainExe.Directory.FullName -Force | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $payload -Recurse -Force
+          }
+          if (-not (Test-Path (Join-Path $payload 'Cricket26AuctionManager.exe'))) {
+            throw 'Copy of main executable failed.'
+          }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+          $candidates = @(
+            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+            'C:\Program Files\Inno Setup 6\ISCC.exe',
+            'C:\Program Files (x86)\Inno Setup 7\ISCC.exe',
+            'C:\Program Files\Inno Setup 7\ISCC.exe'
+          )
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $compiler) { throw 'Inno Setup compiler not found.' }
+          "ISCC_PATH=$compiler" >> $env:GITHUB_ENV
+
+      - name: Compile installer and verify desktop shortcut directive
+        shell: pwsh
+        run: |
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'AuctionHub-v5.iss'
+          $scriptText = Get-Content -LiteralPath $scriptPath -Raw
+          if ($scriptText -notmatch '\{autodesktop\}') {
+            throw 'Desktop shortcut definition is missing.'
+          }
+          & $env:ISCC_PATH $scriptPath
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed ($LASTEXITCODE)" }
+          $installer = Join-Path $env:GITHUB_WORKSPACE 'Output\Cricket26AuctionHub-Setup.exe'
+          if (-not (Test-Path $installer)) { throw 'Installer output not found.' }
+          $digest = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  Cricket26AuctionHub-Setup.exe" | Set-Content -Path 'SHA256SUMS-V5.txt'
+
+      - name: Publish V5 packaging release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v5.0.0 --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'v5.0.0 already exists; refusing to overwrite release.' }
+          @'
+          # V5.0.0 — Standard offline installer packaging
+
+          The application files are unchanged from the V4.0.1 release. This is a packaging change (not new application features).
+
+          - Standard offline Inno Setup installer, including the complete app payload
+          - Desktop and Start Menu shortcuts
+          - Per-user installation and normal uninstaller
+          - V4.0.1 application content SHA-256 verified before packaging
+
+          **Important:** This is not a security certification. Antivirus engines may detect the installer or files inside; the app is unsigned. Existing in-app updater behavior was not modified or validated for this packaging-only release. Keep backups and verify the app works before replacing a working installation.
+          '@ | Set-Content -LiteralPath 'V5-RELEASE-NOTES.md' -Encoding utf8
+          gh release create v5.0.0 'Output/Cricket26AuctionHub-Setup.exe' 'SHA256SUMS-V5.txt' --repo $env:GITHUB_REPOSITORY --title 'V5.0.0 — Offline Installer + Desktop Shortcut' --notes-file 'V5-RELEASE-NOTES.md' --latest
+          if ($LASTEXITCODE -ne 0) { throw "GitHub release publishing failed ($LASTEXITCODE)." }
