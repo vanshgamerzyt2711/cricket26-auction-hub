@@ -1,0 +1,50 @@
+name: Analyze V4 upgrade paths
+
+on:
+  push:
+    paths:
+      - '.github/workflows/analyze-legacy-upgrade.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Inspect legacy update client source and manifests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Join-Path $env:RUNNER_TEMP 'app.zip'
+          Invoke-WebRequest -Uri 'https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v4.0.1/Cricket26AuctionHub-win-x64.zip' -OutFile $zip
+          if((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a9cac4cb748df508ef35fa1527a56e8d108de331339fef931d088d5067a7a202'){throw 'hash mismatch'}
+          $dst=Join-Path $env:RUNNER_TEMP 'app'
+          Expand-Archive -Path $zip -DestinationPath $dst
+          dotnet tool install -g ilspycmd
+          ilspycmd (Join-Path $dst 'Cricket26AuctionManager.exe') -o $env:RUNNER_TEMP
+          $code=Get-Content (Join-Path $env:RUNNER_TEMP 'Cricket26AuctionManager.decompiled.cs')
+          Write-Host 'RELEASEFEED CLASS LOCATION'
+          $a=($code|Select-String -Pattern '^public static class ReleaseFeed'|Select-Object -First 1).LineNumber
+          if(!$a){throw 'No ReleaseFeed found'}
+          foreach($i in $a..([Math]::Min($a+310,$code.Length))){
+            Write-Host ('RF{0}: {1}' -f $i,$code[$i-1].Substring(0,[Math]::Min(350,$code[$i-1].Length)))
+          }
+          Write-Host 'UPDATE DIALOG LINES'
+          foreach($i in 2032..2140){Write-Host ('UD{0}: {1}' -f $i,$code[$i-1].Substring(0,[Math]::Min(340,$code[$i-1].Length)))}
+          Write-Host 'UPDATE BACKGROUND STARTUP LINES'
+          foreach($i in 1790..1926){Write-Host ('UP{0}: {1}' -f $i,$code[$i-1].Substring(0,[Math]::Min(290,$code[$i-1].Length)))}
+          Write-Host 'ROOT MANIFEST'
+          Get-Content (Join-Path $dst 'release-manifest.json') -TotalCount 12
+          Get-Content (Join-Path $dst 'public-release.json') -TotalCount 10
+          Write-Host 'INSTALL MANIFEST KEYS'
+          $manifestPath=Join-Path $env:RUNNER_TEMP 'old-update.json'
+          Invoke-WebRequest -Uri 'https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v4.0.1/Cricket26AuctionHub-update-manifest.json' -OutFile $manifestPath
+          $j=Get-Content $manifestPath -Raw|ConvertFrom-Json
+          $j.PSObject.Properties|ForEach-Object {Write-Host ("KEY " + $_.Name + " = " + (if ($_.Value -is [string]){$_.Value}else{$_.Value.GetType().Name}))}
+          Write-Host 'ZIP ENTRIES'
+          Add-Type -AssemblyName System.IO.Compression
+          $z=[IO.Compression.ZipFile]::OpenRead($zip)
+          $z.Entries | Select-Object -First 5 -ExpandProperty FullName
+          $z.Dispose()
