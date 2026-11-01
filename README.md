@@ -1,4 +1,14 @@
-[Download small Setup.exe](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest/download/Cricket26AuctionHub-Setup.exe) | [Latest release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest)
+# Cricket 26 Auction Hub — V5.0.0 Offline Installer
+
+[Download V5 installer (420 MiB)](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.0/Cricket26AuctionHub-Setup.exe) | [V5 release notes](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/tag/v5.0.0) | [Previous V4.0.1 small downloader](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v4.0.1/Cricket26AuctionHub-Setup.exe)
+
+**V5 is a packaging update, not a new app-feature version.** It contains the V4.0.1 application files in a standard offline Inno Setup installer with Desktop and Start Menu shortcuts, per-user installation, and an uninstaller.
+
+**Note:** This release is unsigned; 0 detections on a previously tested local installer do not certify this published binary or its contents. Update compatibility and the application itself require separate testing. Backup any existing installation before switching installers.
+
+---
+
+## Historical release notes
 
 # Cricket 26 Auction Hub — V2.0.1 Fast Updates
 
