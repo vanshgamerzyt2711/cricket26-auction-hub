@@ -91,11 +91,26 @@ Copy-Item -LiteralPath $deltaSpecFile -Destination (Join-Path $delta 'release-ma
 
 $deltaZip = Join-Path $out 'Cricket26AuctionHub-update-win-x64.zip'
 $fullZip = Join-Path $out 'Cricket26AuctionHub-win-x64.zip'
-Compress-Archive -Path (Join-Path $delta '*') -DestinationPath $deltaZip -CompressionLevel Optimal
-Compress-Archive -Path (Join-Path $app '*') -DestinationPath $fullZip -CompressionLevel Optimal
+# Create ZIPs without folder-marker entries. The legacy release parser rejects unlisted entries.
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.ZipFile
+function New-CleanZip([string] $source, [string] $destination) {
+    if(Test-Path $destination) { Remove-Item -LiteralPath $destination -Force }
+    $z = [IO.Compression.ZipFile]::Open($destination, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach($file in (Get-ChildItem $source -File -Recurse | Sort-Object FullName)) {
+            $relative = $file.FullName.Substring($source.Length + 1).Replace('\','/')
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $z, $file.FullName, $relative, [IO.Compression.CompressionLevel]::Optimal
+            ) | Out-Null
+        }
+    }
+    finally { $z.Dispose() }
+}
+New-CleanZip $delta $deltaZip
+New-CleanZip $app $fullZip
 
 # Read ZIPs back and check all expected entries are present. Reject duplicate entries.
-Add-Type -AssemblyName System.IO.Compression
 foreach ($check in @(
     @{ File = $fullZip; Count = $included.Count + 1; Label = 'full' },
     @{ File = $deltaZip; Count = 3; Label = 'delta' }
