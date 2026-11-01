@@ -34,5 +34,18 @@ jobs:
             $line=$m.Line.Trim()
             Write-Host "MATCH $($m.Path.Substring($out.Length)):$($m.LineNumber): $($line.Substring(0,[Math]::Min($line.Length,230)))"
           }
+
+          $decomp = Join-Path $out 'Cricket26AuctionManager.decompiled.cs'
+          $lines = Get-Content -LiteralPath $decomp
+          foreach($range in @(@(1920,2040),@(5010,5185),@(5290,5395))){
+            Write-Host "EXCERPT $($range[0])-$($range[1])"
+            foreach($i in $range[0]..([Math]::Min($range[1],$lines.Length))){
+              $line=$lines[$i-1]
+              Write-Host ('L{0}: {1}' -f $i,$line.Substring(0,[Math]::Min(270,$line.Length)))
+            }
+          }
+          Write-Host 'Public release metadata:'
+          Get-Content (Join-Path $dst 'public-release.json') -Raw | Select-Object -First 1 | ForEach-Object {Write-Host $_.Substring(0,[Math]::Min(1000,$_.Length))}
+
           Write-Host 'Assembly attributes mentioning version:'
           Get-ChildItem $out -Recurse -File -Include '*AssemblyInfo*.cs' | Select-String -Pattern 'AssemblyVersion|AssemblyFileVersion' | Select-Object -First 10 | ForEach-Object { Write-Host $_.Line }
