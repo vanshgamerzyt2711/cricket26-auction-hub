@@ -1,0 +1,49 @@
+name: Inspect app updater implementation
+
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-app-updater.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download V4.0.1 and inspect version references
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url='https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v4.0.1/Cricket26AuctionHub-win-x64.zip'
+          $zip=Join-Path $env:RUNNER_TEMP 'app.zip'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $expected='a9cac4cb748df508ef35fa1527a56e8d108de331339fef931d088d5067a7a202'
+          $actual=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($actual -ne $expected){throw 'Integrity mismatch'}
+          $dst=Join-Path $env:RUNNER_TEMP 'app'
+          Expand-Archive -LiteralPath $zip -DestinationPath $dst
+          Write-Host 'Root entries:'
+          Get-ChildItem -LiteralPath $dst | Select-Object -First 25 -ExpandProperty Name
+          Write-Host 'Main EXE metadata:'
+          Get-ChildItem -LiteralPath $dst -Recurse -Filter Cricket26AuctionManager.exe -File | Select-Object -First 3 | ForEach-Object {
+            Write-Host "Exe path: $($_.FullName.Substring($dst.Length))"
+            Write-Host "Product version: $($_.VersionInfo.ProductVersion)"
+            Write-Host "File version: $($_.VersionInfo.FileVersion)"
+          }
+          $files=Get-ChildItem -LiteralPath $dst -File -Recurse | Where-Object {
+            $_.Extension -in '.js','.cjs','.json','.config' -and
+            $_.Length -lt 2MB -and
+            $_.FullName -notmatch '[\\/]node_modules[\\/]|[\\/]runtime[\\/]|[\\/]_internal[\\/]' 
+          } 
+          Write-Host "Candidate source files: $($files.Count)"
+          $files|Select-Object -First 50|ForEach-Object {Write-Host $_.FullName.Substring($dst.Length)}
+          foreach($f in $files){
+            $hits=Select-String -LiteralPath $f.FullName -Pattern 'Cricket26AuctionHub-update-manifest|releases/latest|update-win-x64|Update & Restart|latestRelease|checkForUpdates' -SimpleMatch -ErrorAction SilentlyContinue
+            foreach($hit in $hits|Select-Object -First 7){
+              $line=$hit.Line
+              Write-Host "MATCH $($f.FullName.Substring($dst.Length)):$($hit.LineNumber) $($line.Substring(0,[Math]::Min(240,$line.Length)))"
+            }
+          }
+          Write-Host 'Version-looking files:'
+          Get-ChildItem -LiteralPath $dst -File -Recurse | Where-Object { $_.Name -match 'version|update|release' -and $_.FullName -notmatch 'node_modules|runtime' } | Select-Object -First 50 | ForEach-Object {Write-Host $_.FullName.Substring($dst.Length)}
