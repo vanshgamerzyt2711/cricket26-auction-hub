@@ -1,5 +1,5 @@
 name: Build V5.0.1 compatible automatic updater
-# Retry after adjusting native version-resource compatibility
+# Retry after fixing strict legacy ZIP entry format
 
 on:
   push:
