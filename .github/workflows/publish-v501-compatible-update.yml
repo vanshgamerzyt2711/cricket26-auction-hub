@@ -1,5 +1,5 @@
 name: Build V5.0.1 compatible automatic updater
-# Retry after fixing repository root detection
+# Retry after fixing assembly file locking during patch
 
 on:
   push:
