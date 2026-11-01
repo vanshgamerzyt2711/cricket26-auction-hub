@@ -1,16 +1,17 @@
-# Cricket 26 Auction Hub — V5.0.0 Offline Installer
+# Cricket 26 Auction Hub — V5.0.1 Automatic Updates
 
-[Download V5 installer (420 MiB)](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.0/Cricket26AuctionHub-Setup.exe) | [V5 release notes](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/tag/v5.0.0) | [Previous V4.0.1 small downloader](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v4.0.1/Cricket26AuctionHub-Setup.exe)
+[Download latest V5.0.1 installer](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.1/Cricket26AuctionHub-Setup.exe) | [Latest release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest) | [Update troubleshooting](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/issues/1)
 
-**V5 is a packaging update, not a new app-feature version.** It contains the V4.0.1 application files in a standard offline Inno Setup installer with Desktop and Start Menu shortcuts, per-user installation, and an uninstaller.
+**V4 users:** V5.0.1 has a verified full ZIP and delta patch/manifest required by the V4 updater. On startup, V4 should offer **Update & Restart**. It updates the existing app files in place; backups remain outside the app in `%LOCALAPPDATA%\Cricket26AuctionHub\UserData`. Do not uninstall the old app before updating.
 
-**Existing V4 users:** V5 is an offline packaging-only release. It does **not** provide the legacy `Cricket26AuctionHub-update-manifest.json` or `Cricket26AuctionHub-update-win-x64.zip`, and its application binary still identifies itself as 4.0.1. Do not expect the old in-app updater to offer V5. Download the V5 installer manually, close the old app, back up your profiles/saves, and install without uninstalling your existing working version. The standard installer uses a separate per-user install directory, so automatic in-place migration is not supported. Do not publish a fabricated 5.0.0 update manifest until the app is actually rebuilt with updated version/update logic.
+**New installations:** The V5.0.1 offline installer creates Desktop and Start Menu shortcuts. It uses a separate install directory, so existing V4 users should use the in-app updater to avoid duplicate installations.
 
-**Note:** This release is unsigned; 0 detections on a previously tested local installer do not certify this published binary or its contents. Update compatibility and the application itself require separate testing. Backup any existing installation before switching installers.
+**Security:** Core gameplay features remain based on V4.0.1. Internal version markers were updated to V5.0.1. Repackaging does not remove malware or guarantee 0 antivirus detections. Keep antivirus enabled and preserve a backup.
 
 ---
 
 ## Historical release notes
+
 
 # Cricket 26 Auction Hub — V2.0.1 Fast Updates
 
