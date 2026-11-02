@@ -1,0 +1,36 @@
+name: Finalize verified V5.0.2 stable draft
+on:
+  push:
+    paths:
+      - '.github/workflows/finalize-v502-stable.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify draft by ID and publish for existing app updater
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          id=431127337
+          echo "Inspecting verified release draft $id"
+          gh api "repos/$repo/releases/$id" > /tmp/release.json
+          jq -e '.draft == true and .tag_name == "v5.0.2" and (.assets | length) == 5' /tmp/release.json
+          jq -e '[.assets[] | select(.name == "Cricket26AuctionHub-Setup.exe" and .digest == "sha256:6dc77e9073dc80b4edf406ea4190742324983b9acbc2a744a794e73e1122fce6")] | length == 1' /tmp/release.json
+          jq -e '[.assets[] | select(.name == "Cricket26AuctionHub-win-x64.zip" and .digest == "sha256:55ef4e0b45d6bdc981e851cb3b3aaf7caab14e5ce117bf7fa47a394d60ba621f")] | length == 1' /tmp/release.json
+          jq -e '[.assets[] | select(.name == "Cricket26AuctionHub-update-manifest.json" and .digest == "sha256:ed825892496564698342c60780a7f349c2177a2a819106c185896846dab3f50a")] | length == 1' /tmp/release.json
+          jq -e '[.assets[] | select(.name == "Cricket26AuctionHub-update-win-x64.zip" and .digest == "sha256:65f3eb0dde11490964f78ed8b83ef87f9859e30a9db4a8575f78a6b02bb0d91e")] | length == 1' /tmp/release.json
+          jq -e '[.assets[] | select(.name == "SHA256SUMS.txt" and .digest == "sha256:0abcbb70414bee5dcc217092a8b747f27e2aad1e60f28e4a8d0168d243cd4589")] | length == 1' /tmp/release.json
+
+          gh api --method PATCH "repos/$repo/releases/$id" \
+            -f draft=false -f prerelease=false -f make_latest=true > /tmp/published.json
+          jq -e '.draft == false and .prerelease == false and .tag_name == "v5.0.2"' /tmp/published.json
+          gh api "repos/$repo/releases/latest" > /tmp/latest.json
+          jq -e '.tag_name == "v5.0.2" and (.assets | length) == 5' /tmp/latest.json
+          echo "SUCCESS: v5.0.2 stable latest publicly available for existing app's update checker."
