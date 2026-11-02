@@ -1,0 +1,62 @@
+name: Inspect existing updater failure
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-existing-updater.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect updater commands and installer safety check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url='https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.2/Cricket26AuctionHub-win-x64.zip'
+          $archive=Join-Path $env:RUNNER_TEMP 'auction.zip'
+          Invoke-WebRequest $url -OutFile $archive
+          if((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '55ef4e0b45d6bdc981e851cb3b3aaf7caab14e5ce117bf7fa47a394d60ba621f'){throw 'hash mismatch'}
+          $app=Join-Path $env:RUNNER_TEMP 'auction'
+          Expand-Archive $archive $app
+          Get-ChildItem $app -File | Select-Object Name,Length | Format-Table | Out-String | Write-Host
+          dotnet tool install -g ilspycmd
+          foreach($exe in @('Cricket26AuctionManager.exe','AuctionUpdateHelper.exe','Cricket26AuctionHub-Setup.exe')){
+            $file=Join-Path $app $exe
+            if(!(Test-Path $file)) { Write-Host "NO FILE $exe"; continue }
+            $short=[IO.Path]::GetFileNameWithoutExtension($exe)
+            $out=Join-Path $env:RUNNER_TEMP "out-$short"
+            New-Item -ItemType Directory -Force -Path $out | Out-Null
+            try { ilspycmd $file -o $out 2>&1 | Out-String | Write-Host }
+            catch { Write-Host "DECOMPILATION FAILED $exe";continue }
+            $cs=Get-ChildItem $out -File -Filter '*.cs' | Select-Object -First 1
+            if(!$cs){Write-Host "NOT MANAGED $exe";continue}
+            $lines=Get-Content $cs.FullName
+            Write-Host "==== $exe ==== lines=$($lines.Count)"
+            $patterns=@(
+              'Setup can only update',
+              'its own installed app folder',
+              'Your auction saves are kept',
+              'class AuctionUpdater','class Update','private void Install','InstallUpdate\(',
+              'Update & Restart','--update','--install','--target','--app',
+              'Cricket26AuctionHub-Setup','AuctionUpdateHelper','VerifyInstall',
+              'existing','appPath','installRoot','UpdateWith'
+            )
+            $hitNumbers = [Collections.Generic.HashSet[int]]::new()
+            foreach($p in $patterns){
+              $hits=Select-String -Path $cs.FullName -Pattern $p | Select-Object -First 18
+              Write-Host "PATTERN [$p]: $($hits.Count)"
+              foreach($h in $hits){$null=$hitNumbers.Add([int]$h.LineNumber);Write-Host ("HIT {0}: {1}" -f $h.LineNumber,$h.Line.Trim().Substring(0,[Math]::Min($h.Line.Trim().Length,240)))}
+            }
+            foreach($lineNum in ($hitNumbers | Sort-Object | Select-Object -First 85)){
+              if($lineNum -lt 1) {continue}
+              Write-Host "EXCERPT $exe line $lineNum"
+              $low=[Math]::Max(1,$lineNum-12);$high=[Math]::Min($lines.Count,$lineNum+28)
+              for($i=$low;$i -le $high;$i++){
+                $line=$lines[$i-1]
+                Write-Host ('SRC{0}: {1}' -f $i,$line.Substring(0,[Math]::Min(290,$line.Length)))
+              }
+            }
+          }
