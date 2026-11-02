@@ -1,4 +1,5 @@
 name: Build UI smoothing preview V5.0.2
+# Build re-run after fixing generated script location
 on:
   push:
     paths:
