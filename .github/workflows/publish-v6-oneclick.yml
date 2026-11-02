@@ -1,0 +1,119 @@
+name: Publish V6 stable using existing one-click updater
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-v6-oneclick.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  package-and-publish:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install original Inno Setup packaging compiler
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if($LASTEXITCODE -ne 0){throw 'Inno Setup not available'}
+      - name: Create v6.0.0 main app, full and incremental release
+        shell: pwsh
+        run: |
+          & './tools/BuildV6.ps1'
+          if (!$?) { throw 'V6 app packaging / simulated delta update failed' }
+      - name: Verify versioned update assets and compatibility
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app=Join-Path $PWD 'AppPayload'
+          $output=Join-Path $PWD 'Output'
+          $public=Get-Content (Join-Path $app 'public-release.json') -Raw | ConvertFrom-Json
+          $full=Get-Content (Join-Path $app 'release-manifest.json') -Raw | ConvertFrom-Json -Depth 80
+          $delta=Get-Content (Join-Path $output 'Cricket26AuctionHub-update-manifest.json') -Raw | ConvertFrom-Json -Depth 80
+          foreach($obj in @($public,$full,$delta)){
+            if($obj.appId -ne 'Cricket26AuctionHub' -or $obj.version -ne '6.0.0') {throw "Wrong V6 metadata identity/version"}
+          }
+          if($delta.packageKind -ne 'delta' -or $delta.payloadFiles.Count -ne 2){throw 'Unexpected delta patch shape'}
+          $expected = @('Cricket26AuctionManager.exe','public-release.json')
+          foreach($e in $expected){if($delta.payloadFiles -notcontains $e){throw 'Bad incremental payload metadata'}}
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach($pair in @(
+            @{name='Cricket26AuctionHub-win-x64.zip';count=($full.files.Count + 1)},
+            @{name='Cricket26AuctionHub-update-win-x64.zip';count=3}
+          )){
+            $z=[IO.Compression.ZipFile]::OpenRead((Join-Path $output $pair.name))
+            try {
+              if($z.Entries.Count -ne $pair.count){throw "Archive file-count mismatch $($pair.name)"}
+              foreach($name in @('release-manifest.json','Cricket26AuctionManager.exe','public-release.json')) {
+                if(!$z.GetEntry($name)){throw "Missing $name in $($pair.name)"}
+              }
+            } finally {$z.Dispose()}
+          }
+          $asm=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $app 'Cricket26AuctionManager.exe'))
+          if($asm.Version.ToString() -ne '6.0.0.0'){throw 'Main app version is not V6'}
+          $helper=Join-Path $app 'AuctionUpdateHelper.exe'
+          if(!(Test-Path $helper) -or (Get-Item $helper).Length -lt 10000){throw 'Existing repaired app updater helper missing'}
+          $setup=Join-Path $output 'Cricket26AuctionHub-Setup.exe'
+          if(!(Test-Path $setup)){throw 'V6 offline setup missing'}
+          Write-Host 'PASS: V6 full + incremental release metadata, app version and existing helper.'
+      - name: Upload publicly installable V6 update to GitHub
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo=$env:GITHUB_REPOSITORY
+          $tag='v6.0.0'
+          $found=gh release list --repo $repo --limit 100 --json tagName | ConvertFrom-Json
+          if(@($found | Where-Object { $_.tagName -eq $tag }).Count -gt 0){throw 'Refuse overwrite existing V6 stable release'}
+          @'
+          # Cricket 26 Auction Hub V6.0.0
+
+          V6 is now the newest stable version for the existing **Updates → Update & Restart** button. Compatible previous installations with a functioning updater can install this version with one click; it is not necessary to run CMD or download Setup manually.
+
+          Improvements in this line: smooth fast screen navigation, fewer expensive full-window bitmap transitions, reduced redraw flicker, and support for both official legacy and Inno Setup installation directories in the current updater helper. Auction data and gameplay features are unchanged.
+
+          **Compatibility limitation:** Some earlier V5 Inno-installed copies contain the *original broken updater helper*, which stops with "Setup can only update its own installed app folder" **before** downloading an update. An uploaded GitHub release cannot retroactively patch that already-running helper. Those installations still need the [one-time graphical repair EXE from V5.0.3](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-UpdateRepair.exe); after that they can update directly within the app to V6. No CMD required.
+
+          Existing releases, updater manifests and SHA-256 download verification have been preserved. V6 packaging was built on the pinned SHA-256 verified 5.0.3 app, checked for full and incremental ZIP contents and passed a simulated version-to-version file hash integrity test. Back up auction data; Windows Defender should remain enabled. No independent malware audit or real user PC update test is claimed.
+          '@ | Set-Content 'V6-NOTES.md' -Encoding utf8
+          $files=@(
+            'Output/Cricket26AuctionHub-Setup.exe',
+            'Output/Cricket26AuctionHub-win-x64.zip',
+            'Output/Cricket26AuctionHub-update-win-x64.zip',
+            'Output/Cricket26AuctionHub-update-manifest.json',
+            'Output/SHA256SUMS.txt'
+          )
+          gh release create $tag @files --repo $repo --title 'V6.0.0 — Smooth UI + Built-in One-Click Updates' --notes-file 'V6-NOTES.md' --prerelease=false
+          if($LASTEXITCODE -ne 0){throw 'V6 release upload failed'}
+          $published=gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+          if($published.draft -or $published.prerelease -or $published.assets.Count -ne 5){
+            throw 'V6 release state invalid'
+          }
+          foreach($path in $files) {
+            $name=[IO.Path]::GetFileName($path)
+            $matches=@($published.assets | Where-Object { $_.name -eq $name })
+            if($matches.Count -ne 1){throw "Missing asset $name"}
+            $digest=(Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($matches[0].digest -ne "sha256:$digest"){throw "Release file digest mismatch for $name"}
+          }
+          gh release edit $tag --repo $repo --latest
+          if($LASTEXITCODE -ne 0){throw 'Could not mark V6 latest'}
+          Write-Host "PUBLISHED V6.0.0: $($published.html_url)"
+      - name: Confirm old app detects newer public stable V6
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo=$env:GITHUB_REPOSITORY
+          $latest=gh api "repos/$repo/releases/latest" | ConvertFrom-Json
+          if($latest.tag_name -ne 'v6.0.0') {throw "Unexpected latest: $($latest.tag_name)"}
+          foreach($file in @('Cricket26AuctionHub-win-x64.zip','Cricket26AuctionHub-update-win-x64.zip','Cricket26AuctionHub-update-manifest.json')){
+            if(!($latest.assets | Where-Object { $_.name -eq $file -and $_.digest -match '^sha256:' })){
+              throw "One-click update compatibility asset missing: $file"
+            }
+          }
+          Write-Host 'PASS: Existing updater can discover V6 latest with SHA-256 verified download/patch assets.'
