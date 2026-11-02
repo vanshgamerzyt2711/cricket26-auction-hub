@@ -28,11 +28,11 @@ var managerCtor = typeManager.Methods.Single(m => m.IsConstructor && !m.IsStatic
 var ctorReturns = managerCtor.Body.Instructions.Where(i => i.OpCode == OpCodes.Ret).ToArray();
 if (ctorReturns.Length != 1) throw new InvalidOperationException("Unexpected main form initialization shape.");
 var ci = managerCtor.Body.GetILProcessor();
-foreach (var ret in ctorReturns)
+foreach (var ctorReturn in ctorReturns)
 {
-    ci.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
-    ci.InsertBefore(ret, Instruction.Create(OpCodes.Ldc_I4_1));
-    ci.InsertBefore(ret, Instruction.Create(OpCodes.Call, doubleBufferRef));
+    ci.InsertBefore(ctorReturn, Instruction.Create(OpCodes.Ldarg_0));
+    ci.InsertBefore(ctorReturn, Instruction.Create(OpCodes.Ldc_I4_1));
+    ci.InsertBefore(ctorReturn, Instruction.Create(OpCodes.Call, doubleBufferRef));
 }
 Console.WriteLine("Enabled double-buffer painting for main window.");
 
@@ -104,10 +104,17 @@ setter.Body.MaxStackSize = 8;
 setter.Body.Variables.Add(new VariableDefinition(module.TypeSystem.Int32));
 var ilSet = setter.Body.GetILProcessor();
 void Emit(OpCode op) => ilSet.Append(Instruction.Create(op));
-void Emit(OpCode op, int val) => ilSet.Append(Instruction.Create(op, val));
-void Emit(OpCode op, FieldReference fld) => ilSet.Append(Instruction.Create(op, fld));
-void Emit(OpCode op, MethodReference method) => ilSet.Append(Instruction.Create(op, method));
-void Emit(OpCode op, Instruction target) => ilSet.Append(Instruction.Create(op, target));
+void EmitOp(OpCode op, object operand)
+{
+    switch (operand)
+    {
+        case FieldReference field: ilSet.Append(Instruction.Create(op, field)); break;
+        case MethodReference method: ilSet.Append(Instruction.Create(op, method)); break;
+        case Instruction instruction: ilSet.Append(Instruction.Create(op, instruction)); break;
+        case int number: ilSet.Append(Instruction.Create(op, number)); break;
+        default: throw new InvalidOperationException("Unexpected IL operand type.");
+    }
+}
 
 var loop = Instruction.Create(OpCodes.Ldloc_0);
 var done = Instruction.Create(OpCodes.Ldarg_0);
@@ -115,49 +122,49 @@ var ret = Instruction.Create(OpCodes.Ret);
 // if (value < 0 || value >= pages.Count || value == selected) return
 Emit(OpCodes.Ldarg_1);
 Emit(OpCodes.Ldc_I4_0);
-Emit(OpCodes.Blt, ret);
+EmitOp(OpCodes.Blt, ret);
 Emit(OpCodes.Ldarg_1);
 Emit(OpCodes.Ldarg_0);
-Emit(OpCodes.Ldfld, pagesField);
-Emit(OpCodes.Callvirt, countRef);
-Emit(OpCodes.Bge, ret);
+EmitOp(OpCodes.Ldfld, pagesField);
+EmitOp(OpCodes.Callvirt, countRef);
+EmitOp(OpCodes.Bge, ret);
 Emit(OpCodes.Ldarg_1);
 Emit(OpCodes.Ldarg_0);
-Emit(OpCodes.Ldfld, selectedField);
-Emit(OpCodes.Beq, ret);
+EmitOp(OpCodes.Ldfld, selectedField);
+EmitOp(OpCodes.Beq, ret);
 // ClearTransition(); selected = value;
 Emit(OpCodes.Ldarg_0);
-Emit(OpCodes.Call, clear);
+EmitOp(OpCodes.Call, clear);
 Emit(OpCodes.Ldarg_0);
 Emit(OpCodes.Ldarg_1);
-Emit(OpCodes.Stfld, selectedField);
+EmitOp(OpCodes.Stfld, selectedField);
 Emit(OpCodes.Ldc_I4_0);
 Emit(OpCodes.Stloc_0);
 // for each page: page.Visible = i == value;
 ilSet.Append(loop);
 Emit(OpCodes.Ldarg_0);
-Emit(OpCodes.Ldfld, pagesField);
-Emit(OpCodes.Callvirt, countRef);
-Emit(OpCodes.Bge, done);
+EmitOp(OpCodes.Ldfld, pagesField);
+EmitOp(OpCodes.Callvirt, countRef);
+EmitOp(OpCodes.Bge, done);
 Emit(OpCodes.Ldarg_0);
-Emit(OpCodes.Ldfld, pagesField);
+EmitOp(OpCodes.Ldfld, pagesField);
 Emit(OpCodes.Ldloc_0);
-Emit(OpCodes.Callvirt, indexRef);
+EmitOp(OpCodes.Callvirt, indexRef);
 Emit(OpCodes.Ldloc_0);
 Emit(OpCodes.Ldarg_1);
 Emit(OpCodes.Ceq);
-Emit(OpCodes.Callvirt, visibleRef);
+EmitOp(OpCodes.Callvirt, visibleRef);
 Emit(OpCodes.Ldloc_0);
 Emit(OpCodes.Ldc_I4_1);
 Emit(OpCodes.Add);
 Emit(OpCodes.Stloc_0);
-Emit(OpCodes.Br, loop);
+EmitOp(OpCodes.Br, loop);
 // pages[value].BringToFront();
 ilSet.Append(done);
-Emit(OpCodes.Ldfld, pagesField);
+EmitOp(OpCodes.Ldfld, pagesField);
 Emit(OpCodes.Ldarg_1);
-Emit(OpCodes.Callvirt, indexRef);
-Emit(OpCodes.Callvirt, frontRef);
+EmitOp(OpCodes.Callvirt, indexRef);
+EmitOp(OpCodes.Callvirt, frontRef);
 ilSet.Append(ret);
 Console.WriteLine("Page-switch animation replaced with non-allocating navigation.");
 
