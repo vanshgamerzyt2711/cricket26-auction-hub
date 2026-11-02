@@ -1,4 +1,13 @@
-# Cricket 26 Auction Hub — V5.0.2 Smooth UI Stable + Automatic Updates
+# Cricket 26 Auction Hub — V5.0.3 Smooth UI + Update Folder Repair
+
+**Current stable V5.0.3:** [Latest release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest) | [Download one-time repair installer](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-Setup.exe)
+
+**Fix for "Setup can only update its own installed app folder":** The old updater accepts only `%LOCALAPPDATA%\Cricket26AuctionHub\App`, while the V5 offline installer installs to `%LOCALAPPDATA%\Programs\Cricket26AuctionHub`. V5.0.3 updates `AuctionUpdateHelper.exe` so **both exact supported locations** are accepted without permitting arbitrary or linked folders. The fix keeps the same existing Updates / Update & Restart UI and all V5.0.2 smooth-page improvements. Windows build, full ZIP hashes, delta reconstruction and folder-security checks passed.
+
+**Important one-time recovery:** For a V5 user currently seeing this error when updating from the `Programs` install location, the *old local helper* cannot install its own fix. **Close the app and the 3D auction, back up `%LOCALAPPDATA%\Cricket26AuctionHub\UserData`, then run V5.0.3 offline Setup once.** Its default install path matches the modern `Programs` location, and future releases can use the already-existing Update & Restart button. For users installed in the legacy `App` directory, the existing in-app updater should be able to update directly. For custom or moved folders, determine the installed path before installing; new Setup may create a separate app location. Real user PC testing still required. Keep antivirus enabled.
+
+---
+
 
 **Latest stable — V5.0.2:** [Release / changelog](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/tag/v5.0.2) | [Offline installer](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.2/Cricket26AuctionHub-Setup.exe). The existing **Updates / Update & Restart** control in older V4/V5 installations can detect this newer non-prerelease release. No new update button or logo overlay has been added. Smooth UI changes reduce heavyweight transitions and redraw flicker. The V5.0.2 stable release contains the full ZIP, patch ZIP and update manifest required by the old updater; older installations may use the full-package fallback. Back up saves before upgrading. Real end-to-end Windows tests are still needed.
 
