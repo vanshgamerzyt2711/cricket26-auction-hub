@@ -1,0 +1,37 @@
+name: Highlight one-click updater fix on V5.0.3 release
+on:
+  push:
+    paths:
+      - '.github/workflows/document-repair-exe.yml'
+permissions:
+  contents: write
+jobs:
+  update-notes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Add Windows no-CMD repair download to release instructions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          gh api "repos/$repo/releases/tags/v5.0.3" > /tmp/release.json
+          jq -e '.draft==false and .prerelease==false and (.assets | any(.name=="Cricket26AuctionHub-UpdateRepair.exe"))' /tmp/release.json
+          jq -r .body /tmp/release.json > /tmp/notes-old.md
+          cat > /tmp/notes-intro.md <<'EOF'
+          ## One-click updater repair for existing Inno Setup users
+
+          **No CMD / PowerShell required.** If your old app shows \`Update stopped: Setup can only update its own installed app folder\`, close Auction Hub and the failed Update window, then download and double-click **[Cricket26AuctionHub-UpdateRepair.exe (2.2 MB)](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-UpdateRepair.exe)**. Follow the standard Inno Setup GUI. It replaces only the existing updater helper in the official app location (or the same AppId's previous registered installation); it will not uninstall the app, delete saved auctions, or install a second copy.
+
+          Then reopen Auction Hub and use its **existing Updates → Update & Restart** button to install the latest app version normally. Windows automated tests verified the repair helper was correctly installed, saved data stayed untouched, and unregistered paths were rejected.
+
+          **Why this one-time EXE?** Older Inno installations use a folder the legacy updater refuses before it can download a new version; GitHub cannot change those already-installed bytes remotely. Future updates work through the existing app UI after this repair. Do not disable antivirus.
+
+          ---
+
+          EOF
+          cat /tmp/notes-intro.md /tmp/notes-old.md > /tmp/notes-new.md
+          gh release edit v5.0.3 --repo "$repo" --notes-file /tmp/notes-new.md --latest
+          gh api "repos/$repo/releases/latest" --jq .tag_name | grep -Fx 'v5.0.3'
