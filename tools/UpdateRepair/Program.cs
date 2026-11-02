@@ -80,7 +80,6 @@ using (var assembly = AssemblyDefinition.ReadAssembly(helperPath, new ReaderPara
     var folder = Find("System.Environment", "GetFolderPath", 1);
     var combine = Find("System.IO.Path", "Combine", 3);
     var fullPath = Find("System.IO.Path", "GetFullPath", 1);
-    var separator = Find("System.IO.Path", "get_DirectorySeparatorChar", 0);
     var trim = Find("System.String", "TrimEnd", 1);
     var equals = Find("System.String", "Equals", 2);
     var empty = Find("System.String", "IsNullOrEmpty", 1);
@@ -106,7 +105,7 @@ using (var assembly = AssemblyDefinition.ReadAssembly(helperPath, new ReaderPara
     il.Emit(OpCodes.Newarr, module.TypeSystem.Char);
     il.Emit(OpCodes.Dup);
     il.Emit(OpCodes.Ldc_I4_0);
-    il.Emit(OpCodes.Call, separator);
+    il.Emit(OpCodes.Ldc_I4_S, (sbyte)92); // Windows directory separator (constant in .NET Framework IL)
     il.Emit(OpCodes.Stelem_I2);
     il.Emit(OpCodes.Callvirt, trim);
     il.Emit(OpCodes.Stloc_0);
