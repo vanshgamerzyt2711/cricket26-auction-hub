@@ -1,0 +1,78 @@
+name: Build and test v5.0.3 safe auto-update repair
+on:
+  push:
+    paths:
+      - '.github/workflows/build-v503-repair.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-test-publish-preview:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install approved installer compiler
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup unavailable' }
+      - name: Build version and updater repair with integrity-verified archives
+        shell: pwsh
+        run: |
+          & './tools/BuildUpdateRepair.ps1'
+          if (!$?) { throw 'Build or simulated update failed' }
+      - name: Verify two approved directories and reject unrelated paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $helper = Join-Path $PWD 'AppPayload/AuctionUpdateHelper.exe'
+          $env:REPAIR_HELPER_PATH = $helper
+          @'
+          $ErrorActionPreference = 'Stop'
+          $ass = [Reflection.Assembly]::LoadFrom($env:REPAIR_HELPER_PATH)
+          $method = $ass.GetTypes() | ForEach-Object { $_.GetMethod('ValidateInstallRoot',[Reflection.BindingFlags]'Public,NonPublic,Static') } | Where-Object { $_ } | Select-Object -First 1
+          if(!$method){throw 'Missing ValidateInstallRoot method'}
+          $old = Join-Path (Join-Path $env:LOCALAPPDATA 'Cricket26AuctionHub') 'App'
+          $new = Join-Path (Join-Path $env:LOCALAPPDATA 'Programs') 'Cricket26AuctionHub'
+          foreach($allow in @($old,$new,($new + '\'))) {
+            try {$method.Invoke($null,@([string]$allow))|Out-Null;Write-Host "PASS allowed: $allow"}
+            catch {throw "Approved install location rejected: $allow - $($_.Exception)"}
+          }
+          foreach($deny in @((Join-Path $env:LOCALAPPDATA 'Programs\UnrelatedApp'),(Join-Path $env:USERPROFILE 'Downloads'))) {
+            $rejected=$false
+            try {$method.Invoke($null,@([string]$deny))|Out-Null}
+            catch [Reflection.TargetInvocationException] {
+              if ($_.Exception.InnerException.Message -like '*own installed app folder*') {$rejected=$true}
+            }
+            if(!$rejected){throw "Unsafe unrelated folder accepted: $deny"}
+            Write-Host "PASS rejected: $deny"
+          }
+          '@ | Set-Content -LiteralPath 'test-paths.ps1' -Encoding utf8
+          & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File 'test-paths.ps1'
+          if($LASTEXITCODE -ne 0){throw 'Helper path security smoke test failed'}
+      - name: Publish separate preview release only
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v5.0.3-beta.1'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -eq 0){throw 'Preview already exists.'}
+          @'
+          # V5.0.3 Beta — updater install-directory safety fix
+
+          The existing Windows updater mistakenly allowed only the legacy LocalAppData/Cricket26AuctionHub/App location; the offline Inno Setup installer uses LocalAppData/Programs/Cricket26AuctionHub. This release permits both exact, official paths while retaining the linked-folder and checksum security checks.
+
+          Includes all V5.0.2 smooth UI improvements, plus an updated AuctionUpdateHelper.exe in both the full ZIP and small update ZIP. Main app version is 5.0.3.
+
+          Existing clients installed into the *legacy directory* can get this update through the existing Update & Restart button after release becomes stable. Older installs in the *Programs directory* will fail their old, local helper before it can install the new helper; they need a **one-time repair install** of this offline Setup into the same official Programs directory. Future in-app updates can then succeed. This cannot be fixed entirely by a GitHub release.
+
+          Test release: Windows build, archive checksum validation, full file reconstruction and updater path-security tests. Back up saves first, retain antivirus.
+          '@ | Set-Content 'V503-BETA-NOTES.md' -Encoding utf8
+          gh release create $tag 'Output/Cricket26AuctionHub-Setup.exe' 'Output/Cricket26AuctionHub-win-x64.zip' 'Output/Cricket26AuctionHub-update-win-x64.zip' 'Output/Cricket26AuctionHub-update-manifest.json' 'Output/SHA256SUMS.txt' --repo $env:GITHUB_REPOSITORY --title 'V5.0.3 Beta — Auto-update path repair' --notes-file 'V503-BETA-NOTES.md' --prerelease
+          if($LASTEXITCODE -ne 0){throw 'Upload failed'}
+          $r=gh api repos/$env:GITHUB_REPOSITORY/releases/tags/$tag | ConvertFrom-Json
+          if(!$r.prerelease -or $r.assets.Count -ne 5){throw 'Published preview verification failed'}
+          Write-Host "PREVIEW UPLOADED $($r.html_url)"
