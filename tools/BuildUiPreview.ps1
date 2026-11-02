@@ -16,7 +16,7 @@ foreach($pair in $rules) {
     if(!$old.Contains($pair[0])){throw "Expected build script marker absent: $($pair[0])"}
     $old=$old.Replace($pair[0],$pair[1])
 }
-$generated = Join-Path $root '.generated-v502-build.ps1'
+$generated = Join-Path $PSScriptRoot '.generated-v502-build.ps1'
 Set-Content -LiteralPath $generated -Value $old -Encoding utf8
 try {
     & $generated
