@@ -1,5 +1,8 @@
 # Cricket 26 Auction Hub — V5.0.1 Automatic Updates
 
+> **UI smoothing preview (V5.0.2 beta 1):** [Download the optional Windows installer](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.2-beta.1/Cricket26AuctionHub-Setup.exe) or [review the beta release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/tag/v5.0.2-beta.1). It removes the expensive two-screenshot tab-transition animation and double-buffers form/pages/lists to reduce flickering. **This is not the latest stable version and is not sent as an automatic update.** Back up your auctions before testing; Windows UI testing on a user desktop is still needed. The stable V5.0.1 release stays unchanged.
+
+
 [Download latest V5.0.1 installer](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.1/Cricket26AuctionHub-Setup.exe) | [Latest release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest) | [Update troubleshooting](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/issues/1)
 
 **V4 users:** V5.0.1 has a verified full ZIP and delta patch/manifest required by the V4 updater. On startup, V4 should offer **Update & Restart**. It updates the existing app files in place; backups remain outside the app in `%LOCALAPPDATA%\Cricket26AuctionHub\UserData`. Do not uninstall the old app before updating.
