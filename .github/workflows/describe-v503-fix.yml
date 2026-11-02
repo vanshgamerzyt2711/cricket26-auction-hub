@@ -1,0 +1,32 @@
+name: Update V5.0.3 release instructions
+on:
+  push:
+    paths:
+      - '.github/workflows/describe-v503-fix.yml'
+permissions:
+  contents: write
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Document actual updater repair and supported paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "v5.0.3"
+          cat > /tmp/notes.md <<'EOF'
+          # V5.0.3 — Existing Auto-update Folder Repair + Smooth UI
+
+          This stable release fixes **"Update stopped: Setup can only update its own installed app folder"** for future updates from the two official Cricket 26 Auction Hub Windows app paths. The installed updater previously allowed only `%LOCALAPPDATA%\Cricket26AuctionHub\App`, while V5's offline installer installs in `%LOCALAPPDATA%\Programs\Cricket26AuctionHub`.
+
+          **One-time repair if you're currently getting this error:** The old updater copies its *old local helper*, which rejects the new installation path before downloading any fix. If you installed using the V5 offline installer (Programs location), close the Auction Hub / auction studio / Cricket 26, back up `%LOCALAPPDATA%\Cricket26AuctionHub\UserData`, and run **Cricket26AuctionHub-Setup.exe** below *once*. The modern installer uses its normal `%LOCALAPPDATA%\Programs\Cricket26AuctionHub` destination and replaces the app there. From then on, use the **existing Updates → Update & Restart** option. **No new update button is added.**
+
+          **Legacy installs** in `%LOCALAPPDATA%\Cricket26AuctionHub\App` should be able to install V5.0.3 through the pre-existing in-app updater directly. If you moved the app to a custom folder, first locate that folder; the offline Setup may create another app location. Do not disable the folder security checks or create directory junctions.
+
+          Also includes V5.0.2's fast tab switching (removes heavy DrawToBitmap screen captures), smoother page/list painting and unchanged auction functions.
+
+          **Validation:** Windows build passed, original V5.0.2 files SHA-256 pinned, full and delta ZIP archives validated, all target files hash-checked after simulated update, and Windows reflection tests confirmed both official install directories are accepted (including trailing separator) while unrelated folders are rejected. Keeps anti-reparse/symlink checks. This is not a malware-security audit or a real-machine update test. Keep Defender enabled and backup data before any install.
+          EOF
+          gh release edit v5.0.3 --repo "$GITHUB_REPOSITORY" --notes-file /tmp/notes.md --latest
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "v5.0.3"
