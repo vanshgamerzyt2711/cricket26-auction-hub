@@ -1,0 +1,40 @@
+name: Test Inno Setup user repair script
+on:
+  push:
+    paths:
+      - '.github/workflows/test-user-repair.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test supported Inno install and actual updater replacement
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:TEMP 'trusted-v503.zip'
+          Invoke-WebRequest -UseBasicParsing 'https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-update-win-x64.zip' -OutFile $zip
+          $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($got -ne '5e16f185e44ad2b3d82b176d0f2df824befd824abafc66e0bff4672c62e30b83') { throw 'Release archive mismatch' }
+          $app = Join-Path $env:LOCALAPPDATA 'Programs\Cricket26AuctionHub'
+          Expand-Archive $zip -DestinationPath $app -Force
+          $helper = Join-Path $app 'AuctionUpdateHelper.exe'
+          Copy-Item $helper (Join-Path $env:TEMP 'expected-helper.exe')
+          Set-Content (Join-Path $env:TEMP 'read-only-rescue-target.txt') 'No unrelated modifications'
+          & './tools/RepairInstalledUpdater.ps1' -DetectOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Detection failed' }
+          & './tools/RepairInstalledUpdater.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Repair script exited with error' }
+          $want = (Get-FileHash (Join-Path $env:TEMP 'expected-helper.exe') -Algorithm SHA256).Hash
+          $have = (Get-FileHash $helper -Algorithm SHA256).Hash
+          if ($have -ne $want) { throw 'Repaired helper hash mismatch' }
+          $folder = Join-Path $env:LOCALAPPDATA 'Cricket26AuctionHub\UpdaterBackups'
+          if (!(Get-ChildItem $folder -Filter 'AuctionUpdateHelper-*.exe' | Select-Object -First 1)) { throw 'Backup missing' }
+          Write-Host 'PASS: Inno install correctly detected, zip integrity checked, helper backup and replacement performed.'
+          & './tools/RepairInstalledUpdater.ps1' -DetectOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Post-repair detection failed' }
+          Write-Host 'PASS: user-repair end-to-end test.'
