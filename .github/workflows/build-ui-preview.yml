@@ -1,0 +1,60 @@
+name: Build UI smoothing preview V5.0.2
+on:
+  push:
+    paths:
+      - '.github/workflows/build-ui-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ui-preview:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Ensure standard offline installer compiler exists
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup unavailable' }
+      - name: Build binary UI polish and test update integrity
+        shell: pwsh
+        run: |
+          & './tools/BuildUiPreview.ps1'
+          if (!$?) { throw 'UI preview build or package verification failed' }
+      - name: Publish manual-testing prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v5.0.2-beta.1'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Refusing to overwrite $tag" }
+          @'
+          # Auction Hub UI Smoothness Preview — 5.0.2 beta 1
+
+          **For manual testing only — not an automatic update for all users.** This release is prerelease and not the latest stable version. It is based on the verified V5.0.1 assets and leaves game and auction logic unchanged.
+
+          UI improvements:
+          - Page navigation no longer captures two large screenshots (DrawToBitmap) on every tab change; direct navigation avoids GDI image allocations and heavy fade work.
+          - Double buffering added to the main form and legacy page/list/flow panels to reduce flicker during redraw.
+          - Updated title bar and consistent internal release identifiers.
+          - Existing custom button hover animations, dark palette and auction settings preserved.
+
+          Build validation: SHA-256 original payload verification, modified assembly metadata check, strict ZIP and patch-manifest consistency, simulated update from V5.0.1 checking every final file hash, and reproducible Inno Setup compilation.
+
+          This is not a Windows malware-security audit. Any existing security concerns are not resolved by UI refinements. Keep Windows Defender enabled and back up auction data before testing. Do not uninstall your stable build until preview is manually verified.
+
+          Test in particular: navigation between Play/My Auctions/Squads/Game/Tools, resizing, scrolling lists, update dialog, save-and-resume, and close/restart.
+          '@ | Set-Content -LiteralPath 'V502-PREVIEW-NOTES.md' -Encoding utf8
+          gh release create $tag 'Output/Cricket26AuctionHub-Setup.exe' 'Output/Cricket26AuctionHub-win-x64.zip' 'Output/Cricket26AuctionHub-update-win-x64.zip' 'Output/Cricket26AuctionHub-update-manifest.json' 'Output/SHA256SUMS.txt' --repo $env:GITHUB_REPOSITORY --title 'V5.0.2 Beta 1 — Smooth UI Preview' --notes-file 'V502-PREVIEW-NOTES.md' --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Preview release upload failed' }
+          $release = gh api repos/$env:GITHUB_REPOSITORY/releases/tags/$tag | ConvertFrom-Json
+          if (!$release.prerelease -or $release.assets.Count -ne 5) {
+            throw 'UI prerelease state or asset count incorrect'
+          }
+          Write-Host "UI preview ready: $($release.html_url)"
