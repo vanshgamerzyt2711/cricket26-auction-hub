@@ -1,5 +1,5 @@
 name: Build UI smoothing preview V5.0.2
-# Re-run after fixing C# UI patcher compile errors
+# Re-run with correct original assembly version for UI patching
 on:
   push:
     paths:
