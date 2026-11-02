@@ -1,5 +1,5 @@
 name: Build and test v5.0.3 safe auto-update repair
-# Retry after .NET Framework emitted separator constant adjustment
+# Retry after adjusting Windows PowerShell reflection exception wrapper handling
 on:
   push:
     paths:
@@ -43,8 +43,8 @@ jobs:
           foreach($deny in @((Join-Path $env:LOCALAPPDATA 'Programs\UnrelatedApp'),(Join-Path $env:USERPROFILE 'Downloads'))) {
             $rejected=$false
             try {$method.Invoke($null,@([string]$deny))|Out-Null}
-            catch [Reflection.TargetInvocationException] {
-              if ($_.Exception.InnerException.Message -like '*own installed app folder*') {$rejected=$true}
+            catch {
+              if ($_.Exception.ToString() -like '*own installed app folder*') {$rejected=$true}
             }
             if(!$rejected){throw "Unsafe unrelated folder accepted: $deny"}
             Write-Host "PASS rejected: $deny"
