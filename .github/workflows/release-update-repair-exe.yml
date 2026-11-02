@@ -1,4 +1,5 @@
 name: Build one-click Inno updater repair
+# Run GUI installer via Start-Process -Wait so exit code is captured
 # Retry with captured installer exit code and logs
 # Re-run after fixing Inno script constant name collision
 on:
@@ -60,8 +61,9 @@ jobs:
           $data=Join-Path $env:LOCALAPPDATA 'Cricket26AuctionHub\UserData'
           New-Item -ItemType Directory $data -Force | Out-Null
           Set-Content (Join-Path $data 'kept.txt') 'auction saves untouched'
-          & '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe' '/VERYSILENT' '/SUPPRESSMSGBOXES' '/NORESTART' '/SP-' "/LOG=$env:RUNNER_TEMP\inno-repair.log"
-          $rc=$LASTEXITCODE
+          $installer=(Resolve-Path '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe').Path
+          $proc=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',("/LOG=" + $env:RUNNER_TEMP + "\inno-repair.log")) -Wait -PassThru
+          $rc=$proc.ExitCode
           Write-Host "One-click repair installer exit code: $rc"
           if($rc -ne 0){
             $log="$env:RUNNER_TEMP\inno-repair.log"
@@ -84,8 +86,9 @@ jobs:
             Copy-Item (Join-Path $env:RUNNER_TEMP "verified-update/$name") (Join-Path $custom $name)
           }
           Set-Content (Join-Path $custom 'AuctionUpdateHelper.exe') 'custom app marker'
-          & '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- "/DIR=$custom"
-          $result = $LASTEXITCODE
+          $installer=(Resolve-Path '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe').Path
+          $proc=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',("/DIR=" + $custom)) -Wait -PassThru
+          $result = $proc.ExitCode
           if($result -eq 0) {throw 'Unexpectedly accepted unregistered/custom install directory'}
           if((Get-Content (Join-Path $custom 'AuctionUpdateHelper.exe') -Raw).Trim() -ne 'custom app marker'){throw 'Unregistered install was modified'}
           Write-Host "PASS: Refused unregistered install path (exit $result)"
