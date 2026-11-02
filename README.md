@@ -1,6 +1,13 @@
-# Cricket 26 Auction Hub — V5.0.3 Smooth UI + Update Folder Repair
+# Cricket 26 Auction Hub — V6.0.0 Smooth UI + Existing One-Click Updates
 
-**Current stable V5.0.3:** [Latest release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest) | [Download one-time repair installer](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-Setup.exe)
+**Latest stable V6.0.0:** [Release details](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/tag/v6.0.0) | [GitHub latest](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest). Existing compatible installations with a functioning updater can use the app's **Updates → Update & Restart** button to install V6 **with one click and no commands**. V6's verified full and delta ZIPs preserve the old update scheme and include the path-fixed updater from V5.0.3. V6 also carries the smooth UI improvements already introduced in V5.0.2. Stable build and archive checks passed in GitHub Actions; user-machine testing is still required.
+
+**Already broken V5 Inno updater limitation:** If a pre-V5.0.3 Inno-installed app displays `Setup can only update its own installed app folder`, **GitHub cannot repair that installed helper just by publishing V6** because it rejects the folder *before* installing any newer release. A one-time [graphical 2.2 MB updater repair](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-UpdateRepair.exe) (no CMD) is required for these old installations. After the repair, they can update in-app directly to V6 and update normally thereafter. Don't tell these users that V6 alone resolves the preexisting installed helper.
+
+---
+
+
+**Previous stable V5.0.3 (updater recovery):** [Latest release](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/latest) | [Download one-time repair installer](https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-Setup.exe)
 
 **Fix for "Setup can only update its own installed app folder":** The old updater accepts only `%LOCALAPPDATA%\Cricket26AuctionHub\App`, while the V5 offline installer installs to `%LOCALAPPDATA%\Programs\Cricket26AuctionHub`. V5.0.3 updates `AuctionUpdateHelper.exe` so **both exact supported locations** are accepted without permitting arbitrary or linked folders. The fix keeps the same existing Updates / Update & Restart UI and all V5.0.2 smooth-page improvements. Windows build, full ZIP hashes, delta reconstruction and folder-security checks passed.
 
