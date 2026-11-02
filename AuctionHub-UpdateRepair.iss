@@ -36,8 +36,8 @@ Filename: "{app}\Cricket26AuctionManager.exe"; Description: "Open Auction Hub to
 
 [Code]
 const
-  FILE_ATTRIBUTE_REPARSE_POINT = $400;
-  INVALID_FILE_ATTRIBUTES = $FFFFFFFF;
+  REPAIR_REPARSE_ATTRIBUTE = $400;
+  REPAIR_INVALID_ATTRIBUTES = $FFFFFFFF;
 
 function GetFileAttributesW(lpFileName: string): Cardinal;
   external 'GetFileAttributesW@kernel32.dll stdcall';
@@ -55,7 +55,7 @@ begin
     if DirExists(Cur) then
     begin
       Attrs := GetFileAttributesW(Cur);
-      if (Attrs <> INVALID_FILE_ATTRIBUTES) and ((Attrs and FILE_ATTRIBUTE_REPARSE_POINT) <> 0) then
+      if (Attrs <> REPAIR_INVALID_ATTRIBUTES) and ((Attrs and REPAIR_REPARSE_ATTRIBUTE) <> 0) then
       begin
         Result := True;
         Exit;
