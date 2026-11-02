@@ -1,6 +1,5 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 
 if (args.Length != 2) throw new ArgumentException("Usage: UiPolish <Cricket26AuctionManager.exe> <expected-old-version>");
 string file = Path.GetFullPath(args[0]);
@@ -160,7 +159,6 @@ Emit(OpCodes.Ldarg_1);
 Emit(OpCodes.Callvirt, indexRef);
 Emit(OpCodes.Callvirt, frontRef);
 ilSet.Append(ret);
-setter.Body.OptimizeMacros();
 Console.WriteLine("Page-switch animation replaced with non-allocating navigation.");
 
 // Version metadata, updater comparison strings and visible title must match.
