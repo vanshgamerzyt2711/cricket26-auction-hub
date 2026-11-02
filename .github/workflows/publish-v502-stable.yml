@@ -1,0 +1,119 @@
+name: Publish V5.0.2 stable for existing in-app updater
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-v502-stable.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify-and-publish:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify preview assets and promote to stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = $env:GITHUB_REPOSITORY
+          $tag = 'v5.0.2'
+          $base = 'v5.0.2-beta.1'
+          $existing = gh release view $tag --repo $repo --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Stable $tag exists; refuse overwrite." }
+
+          $expected = @{
+            'Cricket26AuctionHub-Setup.exe' = '6dc77e9073dc80b4edf406ea4190742324983b9acbc2a744a794e73e1122fce6'
+            'Cricket26AuctionHub-update-manifest.json' = 'ed825892496564698342c60780a7f349c2177a2a819106c185896846dab3f50a'
+            'Cricket26AuctionHub-update-win-x64.zip' = '65f3eb0dde11490964f78ed8b83ef87f9859e30a9db4a8575f78a6b02bb0d91e'
+            'Cricket26AuctionHub-win-x64.zip' = '55ef4e0b45d6bdc981e851cb3b3aaf7caab14e5ce117bf7fa47a394d60ba621f'
+            'SHA256SUMS.txt' = '0abcbb70414bee5dcc217092a8b747f27e2aad1e60f28e4a8d0168d243cd4589'
+          }
+          $dir = Join-Path $env:RUNNER_TEMP 'verified-v502'
+          New-Item -Path $dir -ItemType Directory -Force | Out-Null
+          gh release download $base --repo $repo --dir $dir
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot download approved preview assets.' }
+
+          $found = @(Get-ChildItem -LiteralPath $dir -File)
+          if ($found.Count -ne $expected.Count) { throw "Unexpected asset count: $($found.Count)" }
+          foreach ($filename in $expected.Keys) {
+            $p = Join-Path $dir $filename
+            if (!(Test-Path -LiteralPath $p)) { throw "Missing approved asset: $filename" }
+            $digest = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($digest -ne $expected[$filename]) { throw "Checksum mismatch: $filename" }
+            Write-Host "Verified $filename ($((Get-Item $p).Length) bytes)"
+          }
+
+          # Strict source version and application-version checks.
+          $manifest = Get-Content (Join-Path $dir 'Cricket26AuctionHub-update-manifest.json') -Raw | ConvertFrom-Json -Depth 80
+          if ($manifest.appId -ne 'Cricket26AuctionHub' -or $manifest.version -ne '5.0.2' -or !$manifest.files) {
+            throw 'Manifest app identity/version mismatch.'
+          }
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach ($zipFile in @('Cricket26AuctionHub-update-win-x64.zip','Cricket26AuctionHub-win-x64.zip')) {
+            $z = [IO.Compression.ZipFile]::OpenRead((Join-Path $dir $zipFile))
+            try {
+              $paths = @($z.Entries | ForEach-Object { $_.FullName })
+              if (($paths | Select-Object -Unique).Count -ne $paths.Count) { throw "Duplicate archive entries: $zipFile" }
+              $rel = $z.GetEntry('release-manifest.json')
+              if (!$rel) {throw "Missing embedded release manifest: $zipFile"}
+              $reader = [IO.StreamReader]::new($rel.Open())
+              try { $json = $reader.ReadToEnd() | ConvertFrom-Json -Depth 80 }
+              finally { $reader.Dispose() }
+              if ($json.version -ne '5.0.2' -or $json.appId -ne 'Cricket26AuctionHub') { throw "Embedded version mismatch: $zipFile" }
+              if (!$z.GetEntry('Cricket26AuctionManager.exe')) { throw "Main executable missing: $zipFile" }
+              Write-Host "Verified $zipFile release metadata."
+            }
+            finally { $z.Dispose() }
+          }
+
+          @'
+          # Cricket 26 Auction Hub V5.0.2 — Smooth UI Stable Update
+
+          This is the stable follow-up to 5.0.1, available to existing V4/V5 clients through the **already existing** in-app **Updates / Update & Restart** control. No extra logo-area button is added.
+
+          Improvements:
+          - Removes the expensive two-fullscreen-screenshot page transition so switching among pages is lighter.
+          - Enables double-buffered painting on the main form and page/list/flow panels to reduce redraw flicker.
+          - Keeps the existing dark theme, button hover behavior, auction functions, and saved profiles.
+
+          For old users: start the app with an Internet connection and open its built-in Updates feature. The newest non-prerelease GitHub release now has `Cricket26AuctionHub-win-x64.zip`, `Cricket26AuctionHub-update-manifest.json`, and `Cricket26AuctionHub-update-win-x64.zip`, all with checked SHA-256 digests. Older installations may use the full download as a fallback when a delta does not apply.
+
+          A manual full offline installer with Desktop shortcut is included for new users. This uses a separate installation folder; for an existing V4/V5 installation use the in-app update instead of creating another copy.
+
+          Reuses the SHA-256 verified 5.0.2 beta 1 build, whose Windows build, updater package integrity checks, and simulated V5.0.1 -> V5.0.2 patch test passed. Not a guarantee of virus-free software. Windows Defender should remain enabled. Real end-to-end auto-update and performance still require user-machine testing.
+          '@ | Set-Content 'V502-STABLE-NOTES.md' -Encoding utf8
+
+          $files = @($expected.Keys | ForEach-Object { Join-Path $dir $_ })
+          gh release create $tag @files --repo $repo --title 'V5.0.2 — Smooth UI + Existing Automatic Updates' --notes-file 'V502-STABLE-NOTES.md' --draft
+          if ($LASTEXITCODE -ne 0) {throw 'Draft release creation failed.'}
+
+          $check = gh api repos/$repo/releases/tags/$tag | ConvertFrom-Json
+          if (!$check.draft -or $check.assets.Count -ne 5) {throw 'Draft validation failed.'}
+          foreach($asset in $check.assets) {
+            if (!$expected.ContainsKey($asset.name) -or $asset.digest -ne ('sha256:' + $expected[$asset.name])) {
+              throw "Published draft asset checksum mismatch: $($asset.name)"
+            }
+          }
+          gh release edit $tag --repo $repo --draft=false --prerelease=false --latest
+          if ($LASTEXITCODE -ne 0) {throw 'Failed to publish stable release.'}
+          Write-Host "PUBLISHED: https://github.com/$repo/releases/tag/$tag"
+
+      - name: Confirm latest stable release points at V5.0.2
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $latest = gh api repos/$env:GITHUB_REPOSITORY/releases/latest | ConvertFrom-Json
+          if ($latest.tag_name -ne 'v5.0.2' -or $latest.draft -or $latest.prerelease) {
+            throw "Latest stable release mismatch: $($latest.tag_name)"
+          }
+          foreach($filename in @('Cricket26AuctionHub-win-x64.zip','Cricket26AuctionHub-update-manifest.json','Cricket26AuctionHub-update-win-x64.zip')) {
+            if(!($latest.assets | Where-Object { $_.name -eq $filename -and $_.size -gt 0 -and $_.digest -match '^sha256:' })) {
+              throw "Missing updater asset $filename"
+            }
+          }
+          Write-Host 'PASS: Existing V4/V5 updater has a newer public stable release with required hashed ZIP and patch assets.'
