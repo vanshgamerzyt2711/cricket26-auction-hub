@@ -1,4 +1,5 @@
 name: Build one-click Inno updater repair
+# Re-run after fixing Inno script constant name collision
 on:
   push:
     paths:
