@@ -1,4 +1,5 @@
 name: Build one-click Inno updater repair
+# Retry with captured installer exit code and logs
 # Re-run after fixing Inno script constant name collision
 on:
   push:
@@ -59,8 +60,15 @@ jobs:
           $data=Join-Path $env:LOCALAPPDATA 'Cricket26AuctionHub\UserData'
           New-Item -ItemType Directory $data -Force | Out-Null
           Set-Content (Join-Path $data 'kept.txt') 'auction saves untouched'
-          & '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG="$env:RUNNER_TEMP\inno-repair.log"
-          if($LASTEXITCODE -ne 0){Get-Content "$env:RUNNER_TEMP\inno-repair.log" -Tail 120;throw "Repair installer failed code $LASTEXITCODE"}
+          & '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe' '/VERYSILENT' '/SUPPRESSMSGBOXES' '/NORESTART' '/SP-' "/LOG=$env:RUNNER_TEMP\inno-repair.log"
+          $rc=$LASTEXITCODE
+          Write-Host "One-click repair installer exit code: $rc"
+          if($rc -ne 0){
+            $log="$env:RUNNER_TEMP\inno-repair.log"
+            if(Test-Path $log){Get-Content $log -Tail 120}
+            else {Write-Host 'No Inno Setup log generated; likely failed before installer initialization.'}
+            throw "Repair installer failed code $rc"
+          }
           $actual=(Get-FileHash (Join-Path $root 'AuctionUpdateHelper.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
           $expected=Get-Content 'RepairPayload/helper.sha256.txt'
           if($actual -ne $expected){throw 'Updater helper was not replaced correctly'}
