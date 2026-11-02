@@ -1,5 +1,5 @@
 name: Build UI smoothing preview V5.0.2
-# Build re-run after fixing generated script location
+# Re-run after fixing C# UI patcher compile errors
 on:
   push:
     paths:
