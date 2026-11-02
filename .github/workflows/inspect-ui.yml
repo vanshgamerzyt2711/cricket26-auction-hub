@@ -44,5 +44,13 @@ jobs:
               }
             }
           }
+          foreach ($range in @(@(80,110), @(305,415), @(4150,4350), @(4400,4545), @(740,765))) {
+            Write-Host "DETAIL $($range[0])-$($range[1])"
+            foreach ($i in $range[0]..$range[1]) {
+              if ($i -gt $lines.Count) { break }
+              $ln = $lines[$i-1]
+              Write-Host ('D{0}: {1}' -f $i,$ln.Substring(0,[Math]::Min($ln.Length,280)))
+            }
+          }
           $asm = [System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $dir 'Cricket26AuctionManager.exe'))
           Write-Host "ASSEMBLY: $($asm.Name) version=$($asm.Version) framework info="
