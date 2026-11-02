@@ -1,0 +1,102 @@
+name: Build one-click Inno updater repair
+on:
+  push:
+    paths:
+      - '.github/workflows/release-update-repair-exe.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install standard Inno Setup compiler
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compiler missing' }
+      - name: Fetch and verify the reviewed V5.0.3 helper
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $src='https://github.com/vanshgamerzyt2711/cricket26-auction-hub/releases/download/v5.0.3/Cricket26AuctionHub-update-win-x64.zip'
+          Invoke-WebRequest $src -OutFile (Join-Path $env:RUNNER_TEMP 'verified-update.zip')
+          $sha=(Get-FileHash (Join-Path $env:RUNNER_TEMP 'verified-update.zip') -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne '5e16f185e44ad2b3d82b176d0f2df824befd824abafc66e0bff4672c62e30b83') {throw 'Untrusted archive hash'}
+          Expand-Archive (Join-Path $env:RUNNER_TEMP 'verified-update.zip') (Join-Path $env:RUNNER_TEMP 'verified-update')
+          New-Item -ItemType Directory 'RepairPayload' -Force | Out-Null
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'verified-update/AuctionUpdateHelper.exe') 'RepairPayload/AuctionUpdateHelper.exe'
+          if((Get-Item 'RepairPayload/AuctionUpdateHelper.exe').Length -lt 10000){throw 'Updater helper missing or invalid'}
+          (Get-FileHash 'RepairPayload/AuctionUpdateHelper.exe' -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content 'RepairPayload/helper.sha256.txt'
+          Write-Host "Verified updater helper SHA-256 $(Get-Content 'RepairPayload/helper.sha256.txt')"
+      - name: Compile small GUI repair installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $iscc = @(
+            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+            'C:\Program Files\Inno Setup 6\ISCC.exe'
+          ) | Where-Object {Test-Path $_} | Select-Object -First 1
+          if(!$iscc){throw 'Inno Setup compiler not found'}
+          & $iscc 'AuctionHub-UpdateRepair.iss'
+          if($LASTEXITCODE -ne 0){throw 'Inno compile failed'}
+          if(!(Test-Path 'RepairOutput/Cricket26AuctionHub-UpdateRepair.exe')){throw 'Repair installer not generated'}
+          Get-Item 'RepairOutput/Cricket26AuctionHub-UpdateRepair.exe' | Select-Object Name, Length
+      - name: Execute a full repair on a staged modern Inno installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:LOCALAPPDATA 'Programs\Cricket26AuctionHub'
+          New-Item -ItemType Directory $root -Force|Out-Null
+          $verified=Join-Path $env:RUNNER_TEMP 'verified-update'
+          foreach($name in @('Cricket26AuctionManager.exe','AuctionUpdateHelper.exe','release-manifest.json')){
+            Copy-Item (Join-Path $verified $name) (Join-Path $root $name)
+          }
+          Set-Content (Join-Path $root 'AuctionUpdateHelper.exe') 'Old updater placeholder to be replaced'
+          $data=Join-Path $env:LOCALAPPDATA 'Cricket26AuctionHub\UserData'
+          New-Item -ItemType Directory $data -Force | Out-Null
+          Set-Content (Join-Path $data 'kept.txt') 'auction saves untouched'
+          & '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG="$env:RUNNER_TEMP\inno-repair.log"
+          if($LASTEXITCODE -ne 0){Get-Content "$env:RUNNER_TEMP\inno-repair.log" -Tail 120;throw "Repair installer failed code $LASTEXITCODE"}
+          $actual=(Get-FileHash (Join-Path $root 'AuctionUpdateHelper.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected=Get-Content 'RepairPayload/helper.sha256.txt'
+          if($actual -ne $expected){throw 'Updater helper was not replaced correctly'}
+          if((Get-Content (Join-Path $data 'kept.txt') -Raw).Trim() -ne 'auction saves untouched'){throw 'UserData modified'}
+          Write-Host 'PASS: One-click Inno repair updated only helper; auction saves preserved.'
+      - name: Prove it refuses unknown directories with real app-looking files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $custom=Join-Path $env:LOCALAPPDATA 'Programs\FakeAuction'
+          New-Item -ItemType Directory $custom -Force | Out-Null
+          foreach($name in @('Cricket26AuctionManager.exe','AuctionUpdateHelper.exe','release-manifest.json')){
+            Copy-Item (Join-Path $env:RUNNER_TEMP "verified-update/$name") (Join-Path $custom $name)
+          }
+          Set-Content (Join-Path $custom 'AuctionUpdateHelper.exe') 'custom app marker'
+          & '.\RepairOutput\Cricket26AuctionHub-UpdateRepair.exe' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- "/DIR=$custom"
+          $result = $LASTEXITCODE
+          if($result -eq 0) {throw 'Unexpectedly accepted unregistered/custom install directory'}
+          if((Get-Content (Join-Path $custom 'AuctionUpdateHelper.exe') -Raw).Trim() -ne 'custom app marker'){throw 'Unregistered install was modified'}
+          Write-Host "PASS: Refused unregistered install path (exit $result)"
+      - name: Upload new one-click EXE to the existing stable V5.0.3 GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo=$env:GITHUB_REPOSITORY
+          $tag='v5.0.3'
+          $asset='RepairOutput/Cricket26AuctionHub-UpdateRepair.exe'
+          $remote=gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+          if($remote.draft -or $remote.prerelease){throw 'Unexpected release state'}
+          if($remote.assets | Where-Object { $_.name -eq 'Cricket26AuctionHub-UpdateRepair.exe' }) {throw 'Refuse to overwrite existing asset'}
+          gh release upload $tag $asset --repo $repo
+          if($LASTEXITCODE -ne 0){throw 'GitHub release asset upload failed'}
+          $verify=gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+          $uploaded=@($verify.assets | Where-Object { $_.name -eq 'Cricket26AuctionHub-UpdateRepair.exe' })
+          if($uploaded.Count -ne 1){throw 'Repair exe was not attached to stable release'}
+          $want=(Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($uploaded[0].digest -ne "sha256:$want"){throw 'Uploaded installer digest mismatch'}
+          Write-Host "PASS: Published one-click GUI repair $($uploaded[0].browser_download_url)"
