@@ -1,0 +1,49 @@
+name: Promote checked updater repair to V5.0.3 stable
+on:
+  push:
+    paths:
+      - '.github/workflows/promote-v503-stable.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate reviewed repaired package and promote without replacing files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          id=431139978
+          gh api "repos/$repo/releases/$id" >/tmp/source.json
+          jq -e '.tag_name=="v5.0.3-beta.1" and .prerelease==true and .draft==false and (.assets | length)==5' /tmp/source.json
+          jq -e '[.assets[] | select(.name=="Cricket26AuctionHub-Setup.exe" and .digest=="sha256:60531208acfe8ea89548f5f80545ca2c089a94e0cc968bec45e62ddf5f286a82")]|length==1' /tmp/source.json
+          jq -e '[.assets[] | select(.name=="Cricket26AuctionHub-update-manifest.json" and .digest=="sha256:92a9aa0a994076b3d478121e25cff90586d57dd2e4461954d03d8c5ee574f2b0")]|length==1' /tmp/source.json
+          jq -e '[.assets[] | select(.name=="Cricket26AuctionHub-update-win-x64.zip" and .digest=="sha256:5e16f185e44ad2b3d82b176d0f2df824befd824abafc66e0bff4672c62e30b83")]|length==1' /tmp/source.json
+          jq -e '[.assets[] | select(.name=="Cricket26AuctionHub-win-x64.zip" and .digest=="sha256:820cc901b479911a6733f346c646fe038fb9330c29851d75e777a923db93c3be")]|length==1' /tmp/source.json
+          jq -e '[.assets[] | select(.name=="SHA256SUMS.txt" and .digest=="sha256:85760f13c5b95df6ee58c599a04aecd4d85d378deb8ffafc47d948f41085982c")]|length==1' /tmp/source.json
+
+          sha=$(gh api "repos/$repo/git/ref/heads/main" --jq .object.sha)
+          if ! gh api "repos/$repo/git/ref/tags/v5.0.3" >/dev/null 2>&1; then
+            gh api --method POST "repos/$repo/git/refs" -f ref=refs/tags/v5.0.3 -f sha="$sha" >/dev/null
+          fi
+          gh api --method PATCH "repos/$repo/releases/$id" \
+            -f tag_name=v5.0.3 -F prerelease=false -F draft=false \
+            -f make_latest=true \
+            -f name='V5.0.3 — Auto-update folder repair + Smooth UI' > /tmp/published.json
+          jq -e '.tag_name=="v5.0.3" and .prerelease==false and .draft==false and (.assets|length)==5' /tmp/published.json
+          gh release edit v5.0.3 --repo "$repo" --latest
+          for i in 1 2 3 4 5 6; do
+            gh api "repos/$repo/releases/latest" >/tmp/latest.json
+            if jq -e '.tag_name=="v5.0.3" and (.assets|length)==5' /tmp/latest.json; then
+              echo "PASS: V5.0.3 is stable latest with updater-compatible assets."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo 'Latest still points at another release' >&2
+          exit 1
