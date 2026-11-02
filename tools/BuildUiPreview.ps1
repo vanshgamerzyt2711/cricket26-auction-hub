@@ -10,7 +10,8 @@ $rules = @(
   @('$originalVersion = ''4.0.1''','$originalVersion = ''5.0.1'''),
   @('a9cac4cb748df508ef35fa1527a56e8d108de331339fef931d088d5067a7a202','2acd17c4c0c39f617b7c6fc6cea8457641e96576cdbbd7a0cd7575e3e818dd84'),
   @('releases/download/v4.0.1/Cricket26AuctionHub-win-x64.zip','releases/download/v5.0.1/Cricket26AuctionHub-win-x64.zip'),
-  @('tools/VersionPatch/VersionPatch.csproj','tools/UiPolish/UiPolish.csproj')
+  @('tools/VersionPatch/VersionPatch.csproj','tools/UiPolish/UiPolish.csproj'),
+  @('dotnet run --project $patchProject -c Release -- $main $version','dotnet run --project $patchProject -c Release -- $main $originalVersion')
 )
 foreach($pair in $rules) {
     if(!$old.Contains($pair[0])){throw "Expected build script marker absent: $($pair[0])"}
